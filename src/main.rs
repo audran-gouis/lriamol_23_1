@@ -3,8 +3,9 @@ use crossterm::{
     event::{read, Event, KeyCode, KeyEventKind}, // For handling keyboard events
     execute, // To execute terminal commands
     terminal::{Clear, ClearType}, // To clear the terminal screen
+    style::{Color, Print, SetForegroundColor},
 };
-use std::{fs::read_to_string, io::stdout}; // For file reading and standard output
+use std::{fs::read_to_string, io::stdout, io::Write}; // For file reading and standard output
 use std::time::Instant;
 
 // Define the App struct to hold the state of the application
@@ -42,7 +43,13 @@ fn main() -> Result<(), std::io::Error> {
                 print!("{letter2}");
             } else {
                 // If the characters don't match, print an asterisk
-                print!("*");
+                execute!(stdout(), SetForegroundColor(Color::Red)).unwrap();
+
+    // Print a red space
+        print!("█"); // This is the red space
+
+        // Reset the color back to default
+        execute!(stdout(), SetForegroundColor(Color::Reset)).unwrap();
             }
         }
         println!("_"); // Print an underscore to represent the cursor position
