@@ -1,9 +1,9 @@
-// Import necessary libraries from crossterm and std
 use crossterm::{
+    cursor,
     event::{read, Event, KeyCode, KeyEventKind}, // For handling keyboard events
     execute, // To execute terminal commands
-    terminal::{Clear, ClearType}, // To clear the terminal screen
-    style::{Color, Print, SetForegroundColor},
+    terminal::{Clear, ClearType, enable_raw_mode, disable_raw_mode},
+    style::{Color, SetForegroundColor},
 };
 use std::{fs::read_to_string, io::stdout, io::Write}; // For file reading and standard output
 use std::time::Instant;
@@ -14,9 +14,7 @@ struct App {
     user_input: String,   // The text entered by the user so far
 }
 
-// Implement methods for the App struct
 impl App {
-    // Create a new instance of App by reading the file content and initializing user input
     fn new(file_name: &str) -> Result<Self, std::io::Error> {
         let file_content = read_to_string(file_name)?; // Read file content into a string
         Ok(Self {
@@ -26,78 +24,84 @@ impl App {
     }
 }
 
-// Main entry point of the program
 fn main() -> Result<(), std::io::Error> {
-    let mut app = App::new("typing.txt")?; // Create an App instance by loading the "typing.txt" file
-
-    let start = Instant::now();
+    enable_raw_mode()?;
     
-    loop {
-        // Show the target text to the user
-        println!("{}", app.file_content); // Print the content that the user must type
+    let mut app = App::new("typing.txt")?; // Load the file content
+    let start = Instant::now();
 
+    loop {
+        // Clear the terminal and reset the cursor position
+        execute!(stdout(), Clear(ClearType::All), cursor::MoveTo(0, 0))?;
+
+        // Show the target text to the user (fixed at the top of the screen)
+        println!("{}", app.file_content);
+
+        execute!(stdout(), cursor::MoveTo(0, app.file_content.lines().count() as u16 + 1))?;
         // Iterate over both user input and target text and compare each character
         for (letter1, letter2) in app.user_input.chars().zip(app.file_content.chars()) {
+
             if letter1 == letter2 {
                 // If the characters match, print the character
                 print!("{letter2}");
             } else {
-                // If the characters don't match, print an asterisk
+                // If the characters don't match, print a red block
                 execute!(stdout(), SetForegroundColor(Color::Red)).unwrap();
-
-    // Print a red space
-        print!("█"); // This is the red space
-
-        // Reset the color back to default
-        execute!(stdout(), SetForegroundColor(Color::Reset)).unwrap();
+                print!("█"); // Red block for mismatched character
+                execute!(stdout(), SetForegroundColor(Color::Reset)).unwrap(); // Reset color
             }
         }
-        println!("_"); // Print an underscore to represent the cursor position
+
+        // Print a cursor
+        print!("_"); 
+        stdout().flush()?; // Ensure immediate output
 
         // Read the next keyboard event from the user
         if let Event::Key(key_event) = read()? {
             if key_event.kind == KeyEventKind::Press {
-                // Check if the key was pressed (not released)
                 match key_event.code {
                     KeyCode::Backspace => {
                         // If the Backspace key is pressed, remove the last character
                         app.user_input.pop();
                     }
-
-                    KeyCode::Esc => break, // If the Esc key is pressed, exit the loop (end the program)
-
+                    KeyCode::Esc => break, // Exit the loop if Escape is pressed
                     KeyCode::Char(c) => {
-                        // If any character key is pressed, append it to the user input
-                        app.user_input.push(c);
+                        // Only process input if it doesn't exceed the file content's length
+                        if app.user_input.len() < app.file_content.len() {
+                            app.user_input.push(c);
+                        }
                     }
-
                     KeyCode::Enter => {
-                        // If the Enter key is pressed, calculate the typing score
-                        let total_chars = app.file_content.chars().count(); // Count the total characters in the target text
+                        // Calculate typing score when Enter is pressed
+                        let total_chars = app.file_content.chars().count();
                         let total_right = app
                             .user_input
                             .chars()
-                            .zip(app.file_content.chars()) // Compare each character of user input with the target text
-                            .filter(|(a, b)| a == b) // Count how many characters match
+                            .zip(app.file_content.chars())
+                            .filter(|(a, b)| a == b)
                             .count();
 
-                        let word_count : f64 = app.user_input.trim().split_whitespace().count() as f64;
+                        let word_count: f64 = app.user_input.trim().split_whitespace().count() as f64;
+
+                        let words_per_minute = (word_count * 60.0) / start.elapsed().as_secs_f64();
+                        // Move the cursor to the beggining of a line to print feedback
+                        execute!(stdout(), cursor::MoveTo(0, app.file_content.lines().count() as u16))?;
                         
-                        println!("You got {total_right} out of {total_chars}!"); // Display the score
-                        println!("You typed {:.0} words in {:.2} seconds", word_count, start.elapsed().as_secs_f64());
-                        let words_per_minute = (word_count * 60.0)/(start.elapsed().as_secs_f64());
-                        println!("Words per minute : {:.2}", words_per_minute);
+                        println!("\nYou got {total_right} out of {total_chars}!");
+                        println!("\rYou typed {:.0} words in {:.2} seconds", word_count, start.elapsed().as_secs_f64());
+                        println!("\rWords per minute: {:.2}", words_per_minute); 
+                        
+                        execute!(stdout(), cursor::MoveTo(0, app.file_content.lines().count() as u16 + 4))?;
 
-                        return Ok(()); // End the program
+                        disable_raw_mode()?; // Restore terminal mode
+
+                        return Ok(()); // End the program after pressing Enter
+
                     }
-
-                    _ => {} // For any other keys, do nothing
+                    _ => {} // Ignore other keys
                 }
             }
         }
-
-            // Clear the terminal screen for the next loop iteration
-        execute!(stdout(), Clear(ClearType::All))?; // Clear the screen
 
     }
 
