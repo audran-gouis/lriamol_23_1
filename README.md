@@ -1,4 +1,4 @@
-** Unfinished projects : The typing tutor **
+**Unfinished projects : The typing tutor**
 
 This project is part of the 'Unfinished Projects' series of the Learn Rust in a Months of Lunches book. 
 
